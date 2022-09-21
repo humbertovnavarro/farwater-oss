@@ -12,37 +12,33 @@ discordID = "yourdiscordid here"
 -- Discord Webhook url. right click a channel. go to integrations and create a new webhook. Paste the url here
 webhook = "yourwebhookhere"
 
+-- How often to garbage collect
+garbageCollectInterval = 64
+
+
 -- end config vars
-
-
 full = false
 args = {...}
-xx = tonumber(args[1]) - 1
+xx = tonumber(args[1])
 yy = tonumber(args[2])
 zz = tonumber(args[3])
 quarryUp = false
-
+totalBlocks = xx * yy * zz
+xx = xx - 1
 if yy < 0 then
     yy = math.abs(yy)
     quarryUp = true
 end
-
-totalBlocks = xx * yy * zz
 minedBlocks = 0
 moves = 0
-stuck = false
-
 discordMention = "<@" .. discordID .. ">"
 
 function notify(message)
+    print(message)
     local body = "{\"content\":\"" .. message .. "\"" .. "}"
     local headers = {}
     headers["Content-Type"] = "application/json"
-    ok, request, req = http.post(webhook, body, headers)
-    if request == nil then
-        print("could not make request")
-        return
-    end
+    http.post(webhook, body, headers)
 end
 
 function isBurnable(item)
@@ -68,10 +64,6 @@ function isJunk(item)
     return false
 end
 
-function isFull()
-    return turtle.getItemCount > turtle.getItemSpace()
-end
-
 function refuel()
     for i = 1,16 do
         turtle.select(i)
@@ -86,7 +78,6 @@ function garbageCollect()
         turtle.select(i)
         item = turtle.getItemDetail()
         if isJunk(item) then
-            print("dropping " .. item["name"])
             turtle.drop()
         elseif isBurnable(item) then
             turtle.refuel()
@@ -96,7 +87,7 @@ end
 
 function move(dir)
     moves = moves + 1
-    if moves % 64 == 0 then
+    if moves % garbageCollectInterval == 0 then
         notify(minedBlocks .. "/" .. totalBlocks .. " mined")
         garbageCollect()
     end
@@ -129,10 +120,12 @@ function mineColumn(size)
         dig()
         if not move("forward") then
             if turtle.getFuelLevel() == 0 then
-                notify("I ran out of fuel!")
+                notify("turtle ran out of fuel!")
+                error("turtle ran out of fuel")
                 break
             end
-            notify("I got stuck!")
+            notify("turtle stuck!")
+            error("turtle stuck")
         end
     end
 end
@@ -158,28 +151,35 @@ function mineRectangle(sizeX, sizeY)
     end
 end
 
-refuel()
-garbageCollect()
-
-for y = 1,yy do
-    mineRectangle(zz, xx)
-    turtle.turnRight()
-    if y == yy then
-        break
+function printDone()
+    local message = discordMention .. " finished mining job"
+    if not args[4] == nil then
+        message = message .. " " .. args[4]
     end
-    if quarryUp then
-        dig("up")
-        move("up")
-    else
-        dig("down")
-        move("down")
-    end
+    message = message .. " total blocks: " .. tostring(totalBlocks)
+    notify(message)
 end
 
-local message = discordMention .. " finished mining job"
-if not args[4] == nil then
-    message = message .. " " .. args[4]
+function main()
+    for y = 1,yy do
+        mineRectangle(zz, xx)
+        print(y)
+        turtle.turnRight()
+        if y == yy then
+            break
+        end
+        if quarryUp then
+            dig("up")
+            move("up")
+        else
+            dig("down")
+            move("down")
+        end
+    end
+    printDone()
 end
-message = message .. " total blocks: " .. tostring(xx * yy * zz)
 
-notify(message)
+main()
+
+
+
